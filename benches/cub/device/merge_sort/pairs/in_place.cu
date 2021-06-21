@@ -1,0 +1,70 @@
+#include <nvbench/nvbench.cuh>
+
+#include <thrust/device_vector.h>
+#include <thrust/random.h>
+#include <thrust/sequence.h>
+#include <thrust/shuffle.h>
+
+#include <cub/device/device_merge_sort.cuh>
+
+class less_comparator
+{
+public:
+  template <typename T>
+  __device__ bool operator()(T i, T j) noexcept
+  {
+    return i < j;
+  }
+};
+
+template <typename KeyType, typename ValueType>
+void custom_less(nvbench::state &state, nvbench::type_list<KeyType, ValueType>)
+{
+  const auto elements = static_cast<std::size_t>(state.get_int64("Elements"));
+
+  thrust::device_vector<KeyType> keys(elements);
+  thrust::device_vector<ValueType> values(elements);
+
+  thrust::sequence(keys.begin(), keys.end());
+
+  thrust::default_random_engine rng;
+
+  state.add_element_count(elements);
+
+  size_t temp_size = 0;
+  cub::DeviceMergeSort::SortPairs(nullptr,
+                                  temp_size,
+                                  thrust::raw_pointer_cast(keys.data()),
+                                  thrust::raw_pointer_cast(values.data()),
+                                  elements,
+                                  less_comparator());
+
+  thrust::device_vector<char> tmp(temp_size);
+
+  state.exec(nvbench::exec_tag::timer,
+             [&](nvbench::launch &launch, auto &timer) {
+               thrust::shuffle(keys.begin(), keys.end(), rng);
+               timer.start();
+               NVBENCH_CUDA_CALL(cub::DeviceMergeSort::SortPairs(
+                 thrust::raw_pointer_cast(tmp.data()),
+                 temp_size,
+                 thrust::raw_pointer_cast(keys.data()),
+                 thrust::raw_pointer_cast(values.data()),
+                 elements,
+                 less_comparator(),
+                 launch.get_stream()));
+               timer.stop();
+             });
+}
+using value_types = nvbench::type_list<nvbench::uint8_t,
+                                       nvbench::uint16_t,
+                                       nvbench::uint32_t,
+                                       nvbench::uint64_t,
+                                       nvbench::float32_t,
+                                       nvbench::float64_t>;
+
+using key_types = nvbench::type_list<nvbench::uint8_t, nvbench::uint16_t>;
+
+NVBENCH_BENCH_TYPES(custom_less, NVBENCH_TYPE_AXES(key_types, value_types))
+  .set_name("cub::DeviceMergeSort::SortPairs<custom_less> (in-place)")
+  .add_int64_power_of_two_axis("Elements", nvbench::range(20, 29, 3));

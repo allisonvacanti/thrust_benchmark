@@ -16,22 +16,8 @@ static void basic(nvbench::state &state, nvbench::type_list<T>)
   state.add_global_memory_reads<T>(elements, "Size");
   state.add_global_memory_writes<T>(elements);
 
-  size_t tmp_size {};
-  cub::DeviceAdjacentDifference::FlagHeads(
-    nullptr,
-    tmp_size,
-    thrust::raw_pointer_cast(input.data()),
-    thrust::raw_pointer_cast(output.data()),
-    elements);
-
-  thrust::device_vector<uint8_t> tmp_storage(tmp_size);
-
   state.exec([&](nvbench::launch &launch) {
-    size_t temp_size = tmp_size;
-
-    NVBENCH_CUDA_CALL(cub::DeviceAdjacentDifference::FlagHeads(
-      thrust::raw_pointer_cast(tmp_storage.data()),
-      temp_size,
+    NVBENCH_CUDA_CALL(cub::DeviceAdjacentDifference::SubtractRightCopy(
       thrust::raw_pointer_cast(input.data()),
       thrust::raw_pointer_cast(output.data()),
       elements,
@@ -45,5 +31,5 @@ using types = nvbench::type_list<nvbench::uint8_t,
                                  nvbench::float32_t,
                                  nvbench::float64_t>;
 NVBENCH_BENCH_TYPES(basic, NVBENCH_TYPE_AXES(types))
-  .set_name("cub::DeviceAdjacentDifference::FlagHeads (basic)")
-  .add_int64_power_of_two_axis("Elements", nvbench::range(16, 28, 2));
+  .set_name("cub::DeviceAdjacentDifference::SubtractRightCopy (basic)")
+  .add_int64_power_of_two_axis("Elements", nvbench::range(14, 28, 2));
