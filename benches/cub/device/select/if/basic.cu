@@ -89,7 +89,6 @@ static void basic(nvbench::state &state,
 
   thrust::device_vector<T> output(elements);
   thrust::device_vector<T> num_selected(1);
-  thrust::host_vector<T> h_num_selected(1);
 
   auto select_op =
     op_construction_helper<SelectOpType>::template create_select_op<T>(
